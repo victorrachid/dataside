@@ -538,7 +538,8 @@ gold_df_com_pesos = gold_df.alias("G") \
         dfs["rodada_atividade"].alias("RA"),
         (F.col("G.ModuloID") == F.col("RA.id_rodada")) &
         (F.col("G.ClienteId") == F.col("RA.id_cliente")) &
-        (F.col("G.AtividadeId") == F.col("RA.id_atividade")),
+        (F.col("G.AtividadeId") == F.col("RA.id_atividade")) &
+        (F.col("RAU.id_usuario").isNull()),  # Somente usar RA quando RAU não existe (conforme SQL linha 521)
         "left"
     ) \
     .join( # Join com Atividade para pegar a carga horária padrão
