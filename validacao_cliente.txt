@@ -1,0 +1,267 @@
+Teste 1: Filtrando atividades realizadas nos últimos 7 dias 
+Parâmetros
+"notebook_params": {
+                "adminId": "870002",
+                "customerId": "igua",
+                "activityId": "",
+                "activityCompletionDateStartDate": "",
+                "activityCompletionDateEndDate": "",
+                "activityCompletionStatus": "",
+                "activityType": "",
+                "competitionId": "6052,16584",
+                "firstAccessToActivityDateStartDate": "2026-01-29T09:45:24.694-03:00",
+                "firstAccessToActivityDateEndDate": "2026-02-04T09:45:24.694-03:00",
+                "groupId": "",
+                "lastActivityAccessDateStartDate": "",
+                "lastActivityAccessDateEndDate": "",
+                " profileTrackIds": "1,2",
+                "roundId": "",
+                "showEmptyDates": "false",
+                "showInactiveActivity": "false",
+                "showInactiveCompetition": "false",
+                "showInactiveRound": "false",
+                "showInactiveTrack": "false",
+                "trackId": "",
+                "userId": "",
+                "userStatus": "1"
+            }
+
+Problema identificado
+•	Apesar de ter feito filtro por dois ambientes (competitionIds) e especificando data de primeiro acesso às atividades o resultado retornado pelo DataLake foi muito discrepante do retorno obtido do banco de produção, conforme é possível ver nos prints abaixo
+•	O arquivo Excel com o relatório baixado com os filtros informados encontra-se neste arquivo.
+•	Divergências de Colunas
+o	Coluna TempoAcessoTotal existe em produção mas não existe no DataLake
+o	Coluna TempoAcessoNaAtividadeEmHoras não existe em produção mas existe no DataLake
+o	Coluna QtdAcessosNaAtividade existe em produção mas não existe no DataLake
+o	Os campos adicionais são exibidos em produção, mas não são exibidos no DataLake.
+	Cargo
+	Cipa
+	Curso_phishing
+	Operacao
+	Justificativa
+
+Produção (Retornou 760 linhas)
+ 
+
+
+DataLake (Retornou 182670 linhas)
+ 
+Teste 2: Filtrando por usuários ativos, competição e trilha.
+Parâmetros
+            "notebook_params": {
+                "adminId": "870002",
+                "customerId": "igua",
+                "activityId": "",
+                "activityCompletionDateStartDate": "",
+                "activityCompletionDateEndDate": "",
+                "activityCompletionStatus": "",
+                "activityType": "",
+                "competitionId": "16584",
+                "firstAccessToActivityDateStartDate": "",
+                "firstAccessToActivityDateEndDate": "",
+                "groupId": "",
+                "lastActivityAccessDateStartDate": "",
+                "lastActivityAccessDateEndDate": "",
+                " profileTrackIds": "1,2,3",
+                "roundId": "",
+                "showEmptyDates": "false",
+                "showInactiveActivity": "false",
+                "showInactiveCompetition": "false",
+                "showInactiveRound": "false",
+                "showInactiveTrack": "false",
+                "trackId": "68938",
+                "userId": "",
+                "userStatus": "1"
+            }
+
+Problemas encontrados
+•	Executei os mesmos filtros em produção e no relatório do DataLake e deu uma diferença de 139 linhas a mais para o DataLake. A planilha encontra-se neste link para conferência da causa da divergência.
+
+
+Produção retornou 14395 linhas
+ 
+
+DataLake 14534 linhas
+ 
+
+Teste 3: Filtrando por usuários ativos, competição, trilha, módulo e atividade de usuários com perfl de Gestor
+Parâmetros
+            "notebook_params": {
+                "adminId": "870002",
+                "customerId": "igua",
+                "activityId": "352304,352307",
+                "activityCompletionDateStartDate": "",
+                "activityCompletionDateEndDate": "",
+                "activityCompletionStatus": "",
+                "activityType": "",
+                "competitionId": "16584",
+                "firstAccessToActivityDateStartDate": "",
+                "firstAccessToActivityDateEndDate": "",
+                "groupId": "",
+                "lastActivityAccessDateStartDate": "",
+                "lastActivityAccessDateEndDate": "",
+                "profileTrackIds": "3",
+                "roundId": "302858,302859,302860",
+                "showEmptyDates": "false",
+                "showInactiveActivity": "false",
+                "showInactiveCompetition": "false",
+                "showInactiveRound": "false",
+                "showInactiveTrack": "false",
+                "trackId": "68938",
+                "userId": "",
+                "userStatus": "1"
+            }
+Problemas identificados
+•	Fazendo o filtro por usuário gestor, no Data Lake ele trouxe 2 usuários enquanto em produção trouxe apenas 1, conforme prints abaixo.
+
+Produção - Trouxe apenas um usuário.
+ 
+Datalake - Trouxe 2 usuários ao invés de 1.
+
+
+Teste 4: Filtro por status da atividade não funciona
+Parâmetros
+"notebook_params": {
+                "adminId": "870002",
+                "customerId": "igua",
+                "activityId": "",
+                "activityCompletionDateStartDate": "",
+                "activityCompletionDateEndDate": "",
+                "activityCompletionStatus": "in_progress",
+                "activityType": "",
+                "competitionId": "16584",
+                "firstAccessToActivityDateStartDate": "",
+                "firstAccessToActivityDateEndDate": "",
+                "groupId": "",
+                "lastActivityAccessDateStartDate": "",
+                "lastActivityAccessDateEndDate": "",
+                "profileTrackIds": "2",
+                "roundId": "",
+                "showEmptyDates": "false",
+                "showInactiveActivity": "false",
+                "showInactiveCompetition": "false",
+                "showInactiveRound": "false",
+                "showInactiveTrack": "false",
+                "trackId": "68938,59195,61687",
+                "userId": "",
+                "userStatus": "1"
+            }
+
+Problemas identificados
+•	Puxei um relatório filtrando pelo campo status da atividade, com valor “Em Andamento” e o ambiente de produção retornou 88 linhas enquanto o DataLake não retornou nada.
+
+Produção: Trouxe atividades com status em andamento
+ 
+
+DataLake: Não trouxe nenhum dado.
+ 
+
+Teste 5: Filtro de Data de Conclusão da Atividade não funciona.
+Parâmetros
+            "notebook_params": {
+                "adminId": "870002",
+                "customerId": "igua",
+                "activityId": "",
+                "activityCompletionDateStartDate": "2025-11-07T17:18:01.026-03:00",
+                "activityCompletionDateEndDate": "2026-02-04T17:18:01.026-03:00",
+                "activityCompletionStatus": "",
+                "activityType": "",
+                "competitionId": "16584",
+                "firstAccessToActivityDateStartDate": "",
+                "firstAccessToActivityDateEndDate": "",
+                "groupId": "",
+                "lastActivityAccessDateStartDate": "",
+                "lastActivityAccessDateEndDate": "",
+                "profileTrackIds": "",
+                "roundId": "",
+                "showEmptyDates": "false",
+                "showInactiveActivity": "false",
+                "showInactiveCompetition": "false",
+                "showInactiveRound": "false",
+                "showInactiveTrack": "false",
+                "trackId": "68938,59195,61687",
+                "userId": "",
+                "userStatus": "1"
+            }
+
+Problemas Identificados
+•	Ao filtrar o relatório pela data de conclusão da atividade, o sistema não respeita esse filtro e traz todos os registros de usuários que participam dos módulos, independente da data de conclusão
+
+Produção - Retornou 124 linhas
+ 
+
+DataLake - Retornou 20325 linhas
+ 
+
+Teste 6: Filtrando pela Data de Último Acesso à Atividade
+Parâmetros
+"notebook_params": {
+                "adminId": "870002",
+                "customerId": "igua",
+                "activityId": "",
+                "activityCompletionDateStartDate": "",
+                "activityCompletionDateEndDate": "",
+                "activityCompletionStatus": "",
+                "activityType": "",
+                "competitionId": "16584",
+                "firstAccessToActivityDateStartDate": "",
+                "firstAccessToActivityDateEndDate": "",
+                "groupId": "",
+                "lastActivityAccessDateStartDate": "2025-11-07T17:28:51.459-03:00",
+                "lastActivityAccessDateEndDate": "2026-02-04T17:28:51.459-03:00",
+                "profileTrackIds": "2",
+                "roundId": "",
+                "showEmptyDates": "false",
+                "showInactiveActivity": "false",
+                "showInactiveCompetition": "false",
+                "showInactiveRound": "false",
+                "showInactiveTrack": "false",
+                "trackId": "68938,59195,61687",
+                "userId": "",
+                "userStatus": "1"
+            }
+
+Produção - Retornou 137 linhas
+ 
+
+DataLake – Retornou 20300
+ 
+
+Teste 8 - Divergência de dados na instância valecard
+Parâmetros
+ "notebook_params": {
+                "adminId": "870265",
+                "customerId": "valecard",
+                "activityId": "",
+                "activityCompletionDateStartDate": "",
+                "activityCompletionDateEndDate": "",
+                "activityCompletionStatus": "",
+                "activityType": "",
+                "competitionId": "19410",
+                "firstAccessToActivityDateStartDate": "",
+                "firstAccessToActivityDateEndDate": "",
+                "groupId": "",
+                "lastActivityAccessDateStartDate": "",
+                "lastActivityAccessDateEndDate": "",
+                "profileTrackIds": "1,2",
+                "roundId": "",
+                "showEmptyDates": "false",
+                "showInactiveActivity": "false",
+                "showInactiveCompetition": "false",
+                "showInactiveRound": "false",
+                "showInactiveTrack": "false",
+                "trackId": "68259",
+                "userId": "",
+                "userStatus": "1"
+            }
+
+Problemas identificados
+•	O relatório de produção retornou 6350 linhas para o filtro informado enquanto o DataLake retornou 16852 linhas, conforme evidências abaixo:
+•	Os campos adicionais não estão completos em produção são exibidos os campos adicionais área, data_de_contratação, líder_imediato e centro_de_custo enquanto no DataLake apenas o campo adicional área é retornado.
+•	O relatório encontra-se neste link para serem avaliadas. Na aba “Produção” encontram-se os dados extraídos do ambiente produtivo e na aba DataLake os dados extraídos do DataLake.
+
+
+Produção 6350 linhas retornadas 
+ 
+
+DataLake: 16852 linhas
