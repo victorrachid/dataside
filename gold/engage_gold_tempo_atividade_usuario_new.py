@@ -50,8 +50,8 @@ dfs = {t: spark.table(f"prod.silver.{t}") for t in tabelas}
 
 # COMMAND ----------
 
-# CTE Atividades - Todas as atividades
-atividades_df = dfs["atividade"]
+# CTE Atividades - Filtra apenas atividades dos tipos padrao_sou e scorm (conforme SQL procedure linha 102)
+atividades_df = dfs["atividade"].where(F.col("id_tipo").isin('padrao_sou', 'scorm'))
 
 # Construção da base hierárquica
 base_trilha_df = atividades_df.alias("Atividade") \
@@ -197,6 +197,18 @@ ultima_tentativa_df = dfs["tentativa"] \
         F.col("id_status").alias("StatusTentativa")
     )
 
+# Agregar informações de TODOS os acessos à atividade para calcular TempoAcessoTotal e QtdAcessosNaAtividade
+acessos_agregados_df = dfs["acesso_atividade"].groupBy(
+    "id_tentativa", "id_cliente", "id_atividade"
+).agg(
+    F.sum("numero_tempo_em_segundos").alias("TempoAcessoTotalEmSegundos"),
+    F.count("*").alias("QtdAcessosNaAtividade"),
+    F.min("data_cadastro").alias("DataPrimeiroAcessoNaAtividade"),
+    F.max("data_ultima_atualizacao").alias("DataUltimoAcessoNaAtividade"),
+    # MAX usado para pegar o tempo do último acesso (usado em cálculos de status no analytics)
+    F.max("numero_tempo_em_segundos").alias("TempoAcessoNaAtividadeEmSegundos")
+)
+
 # Juntando o resultado parcial com a última tentativa
 resultado_com_tentativa_df = resultado_parcial_df.alias("RP") \
     .join(
@@ -206,8 +218,8 @@ resultado_com_tentativa_df = resultado_parcial_df.alias("RP") \
         (F.col("RP.ModuloID") == F.col("UT.id_rodada")),
         "left"
     ) \
-    .join( # Left Join com AcessoAtividade
-        dfs["acesso_atividade"].alias("AcessoAtividade"),
+    .join( # Left Join com AcessosAgregados (soma de todos os acessos)
+        acessos_agregados_df.alias("AcessoAtividade"),
         (F.col("AcessoAtividade.id_tentativa") == F.col("UT.TentativaID")) &
         (F.col("AcessoAtividade.id_cliente") == F.col("UT.id_cliente")) &
         (F.col("AcessoAtividade.id_atividade") == F.col("RP.AtividadeId")),
@@ -226,9 +238,11 @@ resultado_com_tentativa_df = resultado_parcial_df.alias("RP") \
         "RP.*",
         "UT.TentativaID",
         "UT.StatusTentativa",
-        F.col("AcessoAtividade.numero_tempo_em_segundos").alias("TempoAcessoNaAtividadeEmSegundos"),
-        F.col("AcessoAtividade.data_cadastro").alias("DataPrimeiroAcessoNaAtividade"),
-        F.col("AcessoAtividade.data_ultima_atualizacao").alias("DataUltimoAcessoNaAtividade"),
+        F.col("AcessoAtividade.TempoAcessoNaAtividadeEmSegundos"),
+        F.col("AcessoAtividade.TempoAcessoTotalEmSegundos"),
+        F.col("AcessoAtividade.QtdAcessosNaAtividade"),
+        F.col("AcessoAtividade.DataPrimeiroAcessoNaAtividade"),
+        F.col("AcessoAtividade.DataUltimoAcessoNaAtividade"),
         F.col("Resposta.data_resposta").alias("DataConclusaoAtividade"),
         F.col("Resposta.numero_porcentagem_acertos").alias("AproveitamentoAtividade"),
         F.col("Resposta.texto_resposta_dissertativa"),
@@ -512,7 +526,8 @@ gold_df = resultado_com_dispensa_df.withColumn(
 # COMMAND ----------
 
 # Adiciona Carga Horária e Peso da Atividade
-gold_df_com_pesos = gold_df.alias("G") \
+# Primeiro faz LEFT JOIN com RAU (usuário-específico)
+gold_df_com_rau = gold_df.alias("G") \
     .join(
         dfs["rodada_atividade_usuario"].alias("RAU"),
         (F.col("G.ModuloID") == F.col("RAU.id_rodada")) &
@@ -520,7 +535,10 @@ gold_df_com_pesos = gold_df.alias("G") \
         (F.col("G.AtividadeId") == F.col("RAU.id_atividade")) &
         (F.col("G.UsuarioID") == F.col("RAU.id_usuario")),
         "left"
-    ) \
+    )
+
+# Depois faz LEFT JOIN com RA (geral), mas só usa quando RAU não existe
+gold_df_com_pesos = gold_df_com_rau \
     .join(
         dfs["rodada_atividade"].alias("RA"),
         (F.col("G.ModuloID") == F.col("RA.id_rodada")) &
@@ -534,7 +552,9 @@ gold_df_com_pesos = gold_df.alias("G") \
         "left"
     ) \
     .withColumn(
-        "PesoAtividade", F.coalesce(F.col("RAU.numero_peso"), F.col("RA.numero_peso"))
+        "PesoAtividade", 
+        # Usa RAU se existir, senão usa RA (conforme SQL linha 481: COALESCE(RAU.NU_PESO, RA.NU_PESO))
+        F.coalesce(F.col("RAU.numero_peso"), F.col("RA.numero_peso"))
     ) \
     .withColumn(
         "CargaHorariaAtividade", F.col("Atividade.numero_carga_horaria")
@@ -574,16 +594,19 @@ gold_df_final = gold_df_com_pesos.select(
     F.when(F.col("StatusUsuarioAtividade") != 'Dispensado', F.col("TentativaID").cast("string")).otherwise(F.lit("")).alias("TentativaID"),
     F.when((F.col("StatusUsuarioAtividade") != 'Dispensado') & (F.col("CargaHorariaAtividade") > 0), F.col("CargaHorariaAtividade").cast("string")).otherwise(F.lit("")).alias("CargaHorariaAtividade"),
     "TipoAtividades",
+    # TempoAcessoTotal - soma de todos os tempos de acesso (conforme esperado pelo cliente)
     F.when(
-        (F.col("StatusUsuarioAtividade") != 'Dispensado') & (F.col("TempoAcessoNaAtividadeEmSegundos").isNotNull()), 
+        (F.col("StatusUsuarioAtividade") != 'Dispensado') & (F.col("TempoAcessoTotalEmSegundos").isNotNull()), 
         F.concat(
-            F.format_string("%02d", F.floor(F.col("TempoAcessoNaAtividadeEmSegundos") / 3600).cast("long")),
+            F.format_string("%02d", F.floor(F.col("TempoAcessoTotalEmSegundos") / 3600).cast("long")),
             F.lit(":"),
-            F.format_string("%02d", F.floor((F.col("TempoAcessoNaAtividadeEmSegundos") % 3600) / 60).cast("long")),
+            F.format_string("%02d", F.floor((F.col("TempoAcessoTotalEmSegundos") % 3600) / 60).cast("long")),
             F.lit(":"),
-            F.format_string("%02d", F.floor(F.col("TempoAcessoNaAtividadeEmSegundos") % 60).cast("long"))
+            F.format_string("%02d", F.floor(F.col("TempoAcessoTotalEmSegundos") % 60).cast("long"))
         )
-    ).otherwise(F.lit("")).alias("TempoAcessoNaAtividadeEmHoras"),
+    ).otherwise(F.lit("")).alias("TempoAcessoTotal"),
+    # QtdAcessosNaAtividade - contagem de acessos (conforme esperado pelo cliente)
+    F.when(F.col("StatusUsuarioAtividade") != 'Dispensado', F.col("QtdAcessosNaAtividade").cast("string")).otherwise(F.lit("")).alias("QtdAcessosNaAtividade"),
     F.when(F.col("StatusUsuarioAtividade") != 'Dispensado', F.col("DataPrimeiroAcessoNaAtividade")).alias("DataPrimeiroAcessoNaAtividade"),
     F.when(F.col("StatusUsuarioAtividade") != 'Dispensado', F.col("DataUltimoAcessoNaAtividade")).alias("DataUltimoAcessoNaAtividade"),
     F.when(F.col("StatusUsuarioAtividade") != 'Dispensado', F.col("DataConclusaoAtividade")).alias("DataConclusaoAtividade"),
@@ -599,7 +622,8 @@ gold_df_final = gold_df_com_pesos.select(
     "AmbienteAtivo",
     "TrilhaAtiva",
     "RodadaAtiva",
-    "AtividadeAtiva"
+    "AtividadeAtiva",
+    "TempoAcessoTotalEmSegundos"  # Manter para cálculos no analytics
 ).distinct()
 
 # COMMAND ----------

@@ -202,20 +202,47 @@ def engagesp_relatorio_tempo_atividade_usuario(
             F.col("AtividadeTipoId").isin(activityType.split(',')))
 
     if activityCompletionStatus:
-        gold_df = gold_df.where(F.col("StatusUsuarioAtividade").isin(
-            activityCompletionStatus.split(',')))
+        # Mapeia valores de entrada para valores do banco
+        status_map = {
+            'in_progress': 'Em Andamento',
+            'completed': 'Concluído', 
+            'not_started': 'Não Iniciado',
+            'expired': 'Expirado',
+            'dispensed': 'Dispensado',
+            'awaiting_correction': 'Aguardando Correção',
+            'not_released': 'Não Liberado'
+        }
+        status_list = []
+        for status_value in activityCompletionStatus.split(','):
+            trimmed_status = status_value.strip()
+            normalized_status = trimmed_status.lower()
+            # Tenta mapear, ou usa o valor original (pode já estar em português)
+            mapped_status = status_map.get(normalized_status, trimmed_status)
+            status_list.append(mapped_status)
+        
+        if status_list:
+            gold_df = gold_df.where(F.col("StatusUsuarioAtividade").isin(status_list))
 
+    # Aplicar filtros de data seguindo a lógica do SQL (3-way OR):
+    # 1. Se datas não fornecidas: retorna todas as linhas
+    # 2. Se datas fornecidas: retorna linhas no intervalo
+    # 3. Se showEmptyDates=true: também inclui linhas com data null
     date_filters = [
         ("DataPrimeiroAcessoNaAtividade_ts", start_date_1, end_date_1),
         ("DataUltimoAcessoNaAtividade_ts", start_date_2, end_date_2),
         ("DataConclusaoAtividade_ts", start_date_3, end_date_3)
     ]
     for col_name, start_date, end_date in date_filters:
+        # Se ambas as datas são fornecidas, aplicar filtro
         if start_date and end_date:
+            # Condição base: valor está no intervalo de datas
             condition = F.col(col_name).between(start_date, end_date)
+            # Se showEmptyDates é true, também incluir registros com data null
             if show_empty_dates_bool:
                 condition = condition | F.col(col_name).isNull()
             gold_df = gold_df.where(condition)
+        # Se datas não são fornecidas, não aplicar filtro (SQL retorna tudo neste caso)
+        # Isso já está correto - não fazemos nada
 
     if not show_inactive_competition_bool:
         gold_df = gold_df.where(F.col("AmbienteAtivo") == True)
@@ -286,7 +313,7 @@ def engagesp_relatorio_tempo_atividade_usuario(
         "UsuarioID", "NomeUsuario", "EmailUsuario", "LoginUsuario", "StatusUsuario", "GrupoPaiId", "NomeGrupoPai",
         "GrupoFilhoId", "NomeGrupoFilho", "TodosGruposUsuario", "AmbienteID", "NomeAmbiente", "TrilhaID", "NomeTrilha", "ModuloID",
         "NomeModulo", "AtividadeId", "NomeAtividade", "TentativaID", "CargaHorariaAtividade", "TipoAtividades",
-        "TempoAcessoNaAtividadeEmHoras", "DataPrimeiroAcessoNaAtividade", "DataUltimoAcessoNaAtividade",
+        "TempoAcessoTotal", "QtdAcessosNaAtividade", "DataPrimeiroAcessoNaAtividade", "DataUltimoAcessoNaAtividade",
         "DataConclusaoAtividade", "AproveitamentoAtividade", "EnunciadoAtividade", "RespostaUsuario",
         "PesoAtividade", "FeedbackAtividade", "StatusUsuarioAtividade", "PerfilNaTrilha", "AcessouReuniaoZoom"
     ]
