@@ -553,8 +553,7 @@ gold_df_com_pesos = gold_df_com_rau \
     .withColumn(
         "PesoAtividade", 
         # Usa RAU se existir, senão usa RA (conforme SQL linha 481: COALESCE(RAU.NU_PESO, RA.NU_PESO))
-        F.when(F.col("RAU.numero_peso").isNotNull(), F.col("RAU.numero_peso"))
-         .otherwise(F.col("RA.numero_peso"))
+        F.coalesce(F.col("RAU.numero_peso"), F.col("RA.numero_peso"))
     ) \
     .withColumn(
         "CargaHorariaAtividade", F.col("Atividade.numero_carga_horaria")

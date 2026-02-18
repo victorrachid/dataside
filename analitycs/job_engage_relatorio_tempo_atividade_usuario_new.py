@@ -214,9 +214,10 @@ def engagesp_relatorio_tempo_atividade_usuario(
         }
         status_list = []
         for s in activityCompletionStatus.split(','):
-            s_lower = s.strip().lower()
+            s_stripped = s.strip()
+            s_lower = s_stripped.lower()
             # Tenta mapear, ou usa o valor original (pode já estar em português)
-            mapped_status = status_map.get(s_lower, s.strip())
+            mapped_status = status_map.get(s_lower, s_stripped)
             status_list.append(mapped_status)
         
         if status_list:
