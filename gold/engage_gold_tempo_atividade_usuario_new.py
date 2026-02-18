@@ -205,7 +205,8 @@ acessos_agregados_df = dfs["acesso_atividade"].groupBy(
     F.count("*").alias("QtdAcessosNaAtividade"),
     F.min("data_cadastro").alias("DataPrimeiroAcessoNaAtividade"),
     F.max("data_ultima_atualizacao").alias("DataUltimoAcessoNaAtividade"),
-    F.max("numero_tempo_em_segundos").alias("TempoAcessoNaAtividadeEmSegundos")  # Mantém para compatibilidade
+    # MAX usado para pegar o tempo do último acesso (usado em cálculos de status no analytics)
+    F.max("numero_tempo_em_segundos").alias("TempoAcessoNaAtividadeEmSegundos")
 )
 
 # Juntando o resultado parcial com a última tentativa
