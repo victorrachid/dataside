@@ -212,8 +212,15 @@ def engagesp_relatorio_tempo_atividade_usuario(
             'awaiting_correction': 'Aguardando Correção',
             'not_released': 'Não Liberado'
         }
-        status_list = [status_map.get(s.strip().lower(), s.strip()) for s in activityCompletionStatus.split(',')]
-        gold_df = gold_df.where(F.col("StatusUsuarioAtividade").isin(status_list))
+        status_list = []
+        for s in activityCompletionStatus.split(','):
+            s_lower = s.strip().lower()
+            # Tenta mapear, ou usa o valor original (pode já estar em português)
+            mapped_status = status_map.get(s_lower, s.strip())
+            status_list.append(mapped_status)
+        
+        if status_list:
+            gold_df = gold_df.where(F.col("StatusUsuarioAtividade").isin(status_list))
 
     # Aplicar filtros de data seguindo a lógica do SQL (3-way OR):
     # 1. Se datas não fornecidas: retorna todas as linhas

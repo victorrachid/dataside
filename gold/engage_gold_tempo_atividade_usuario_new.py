@@ -525,7 +525,8 @@ gold_df = resultado_com_dispensa_df.withColumn(
 # COMMAND ----------
 
 # Adiciona Carga Horária e Peso da Atividade
-gold_df_com_pesos = gold_df.alias("G") \
+# Primeiro faz LEFT JOIN com RAU (usuário-específico)
+gold_df_com_rau = gold_df.alias("G") \
     .join(
         dfs["rodada_atividade_usuario"].alias("RAU"),
         (F.col("G.ModuloID") == F.col("RAU.id_rodada")) &
@@ -533,13 +534,15 @@ gold_df_com_pesos = gold_df.alias("G") \
         (F.col("G.AtividadeId") == F.col("RAU.id_atividade")) &
         (F.col("G.UsuarioID") == F.col("RAU.id_usuario")),
         "left"
-    ) \
+    )
+
+# Depois faz LEFT JOIN com RA (geral), mas só usa quando RAU não existe
+gold_df_com_pesos = gold_df_com_rau \
     .join(
         dfs["rodada_atividade"].alias("RA"),
         (F.col("G.ModuloID") == F.col("RA.id_rodada")) &
         (F.col("G.ClienteId") == F.col("RA.id_cliente")) &
-        (F.col("G.AtividadeId") == F.col("RA.id_atividade")) &
-        (F.col("RAU.id_usuario").isNull()),  # Somente usar RA quando RAU não existe (conforme SQL linha 521)
+        (F.col("G.AtividadeId") == F.col("RA.id_atividade")),
         "left"
     ) \
     .join( # Join com Atividade para pegar a carga horária padrão
@@ -548,7 +551,10 @@ gold_df_com_pesos = gold_df.alias("G") \
         "left"
     ) \
     .withColumn(
-        "PesoAtividade", F.coalesce(F.col("RAU.numero_peso"), F.col("RA.numero_peso"))
+        "PesoAtividade", 
+        # Usa RAU se existir, senão usa RA (conforme SQL linha 481: COALESCE(RAU.NU_PESO, RA.NU_PESO))
+        F.when(F.col("RAU.numero_peso").isNotNull(), F.col("RAU.numero_peso"))
+         .otherwise(F.col("RA.numero_peso"))
     ) \
     .withColumn(
         "CargaHorariaAtividade", F.col("Atividade.numero_carga_horaria")
